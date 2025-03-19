@@ -1,52 +1,59 @@
 import logging
 import os 
-import gc
-from classify import load_to_daskDf, classify_partition
-from dask.distributed import Client,LocalCluster
-from download_dataSet import download_data
+import time
+from classify import load_to_pd, classify_partition
+from download_split import download_data, split_data
+from concurrent.futures import ProcessPoolExecutor
 
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def process_and_write_chunk(df_chunk, output_file):
-    logger.info("Classifying data")
-    classified_df = classify_partition(df_chunk)
 
-    logger.info("Appending results to file")
-    if not os.path.exists(output_file):
-        classified_df.to_csv(output_file, index=False)
-    else:
-        classified_df.to_csv(output_file, mode='a', header=False, index=False)
+def process_file(i):
+    
+    try:
+        logger.info(f"Processing file: {i}")
+        df = load_to_pd(f'data/raw/name.basics_{i}.tsv')
+
+  
+        df = classify_partition(df)
+       
+
+        df.to_csv(f'data/results/name.basics_{i}.csv', index=False)
+        logger.info(f"File {i} saved successfully...")
+    except Exception as e:
+        logger.error(f"Error processing file {i}: {e}")
 
 if __name__ == '__main__':
 
     download_data('https://datasets.imdbws.com/name.basics.tsv.gz')
-    cluster = LocalCluster(n_workers=1,threads_per_worker=1,processes=True,memory_limit='4GB')
-    with Client(cluster) as client:
+    logger.info("Data downloaded successfully...")
+
+    #split data into multiple files (100 files total)
+    split_data()
+    logger.info("Data split successfully...")
+
+    #if data split is succesful delete the original file
+    if os.path.exists('data/raw/name.basics.tsv'):
+        os.remove('data/raw/name.basics.tsv')
        
-        try: 
-            logger.info("Loading data")
-            df = load_to_daskDf('data/raw/name.basics.tsv')
+    
+    num_workers = 2
+    logger.info(f"Starting processing with: {num_workers} workers")
 
-            output_file = 'data/results/classified_data.csv'
-            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    # track how long overall processing takes
+    start = time.time()
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        executor.map(process_file, range(100))
+    end = time.time()
+    
+    logger.info(f"Processing completed in {end-start} seconds")
+    
 
-            logger.info("Classifying data firt 500000 rows")
-            first_chunk = df.head(500000)
-            process_and_write_chunk(first_chunk, output_file)
 
-           
-            gc.collect()
-           
-            
-            
-         
-            
-          
-        except Exception as e:
-            logger.error(f"An error occurred: {e}")
-        finally:
-            logger.info("Cleaning up...")
-           
+   
+    
+        
+

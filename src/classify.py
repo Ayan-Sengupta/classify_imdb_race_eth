@@ -1,11 +1,11 @@
 import gc
 import ethnicolr as ec
-import dask.dataframe as dd
+import pandas as pd
 
 
 
-def load_to_daskDf(file_path):
-    return dd.read_csv(file_path,sep='\t',dtype={'birthYear': 'object', 'deathYear': 'object'},blocksize='100MB')
+def load_to_pd(file_path):
+    return pd.read_csv(file_path,sep='\t')
 
 def split_primary_name(df):
     # Split the primaryName into firstName 
@@ -20,7 +20,6 @@ def split_primary_name(df):
 def classify_partition(partition):
     partition = split_primary_name(partition)
     classified = ec.pred_wiki_name(partition, 'lastName', 'firstName')
-    gc.collect()
     return classified
 
 

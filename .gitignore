@@ -1,3 +1,5 @@
 venv
+clean_env
 __pycache__
+data/raw/*.tsv
 data/results/*.csv
